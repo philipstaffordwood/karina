@@ -6,11 +6,24 @@ import (
 	"strings"
 
 	"github.com/flanksource/karina/pkg/api/calico"
+	konfigadm "github.com/flanksource/konfigadm/pkg/types"
 	yaml "gopkg.in/flanksource/yaml.v3"
 )
 
 type Enabled struct {
 	Disabled bool `yaml:"disabled"`
+}
+
+type Disabled struct {
+	Disabled bool   `yaml:"disabled"`
+	Version  string `yaml:"version"`
+}
+
+func (d Disabled) IsDisabled() bool {
+	if d.Disabled {
+		return true
+	}
+	return d.Version == ""
 }
 
 type CertManager struct {
@@ -51,8 +64,13 @@ type VM struct {
 	Tags     map[string]string `yaml:"tags,omitempty"`
 	Commands []string          `yaml:"commands,omitempty"`
 	// A path to a konfigadm specification used for configuring the VM on creation.
-	KonfigadmFile string `yaml:"konfigadm,omitempty"`
-	IP            string `yaml:"-"`
+	KonfigadmFile string            `yaml:"konfigadm,omitempty"`
+	IP            string            `yaml:"-"`
+	Konfigadm     *konfigadm.Config `yaml:"-"`
+}
+
+func (vm VM) GetTags() map[string]string {
+	return vm.Tags
 }
 
 type Calico struct {
@@ -312,7 +330,7 @@ func (c *Kubernetes) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 type Dashboard struct {
-	Enabled
+	Enabled          `yaml:",inline"`
 	AccessRestricted LdapAccessConfig `yaml:"accessRestricted,omitempty"`
 }
 
@@ -340,7 +358,7 @@ type Monitoring struct {
 	Version            string        `yaml:"version,omitempty" json:"version,omitempty"`
 	Prometheus         Prometheus    `yaml:"prometheus,omitempty" json:"prometheus,omitempty"`
 	Grafana            Grafana       `yaml:"grafana,omitempty" json:"grafana,omitempty"`
-	AlertManager       string        `yaml:"alertMmanager,omitempty"`
+	AlertManager       AlertManager  `yaml:"alertmanager,omitempty"`
 	KubeStateMetrics   string        `yaml:"kubeStateMetrics,omitempty"`
 	KubeRbacProxy      string        `yaml:"kubeRbacProxy,omitempty"`
 	NodeExporter       string        `yaml:"nodeExporter,omitempty"`
@@ -359,6 +377,11 @@ type Prometheus struct {
 	Version     string      `yaml:"version,omitempty"`
 	Disabled    bool        `yaml:"disabled,omitempty"`
 	Persistence Persistence `yaml:"persistence,omitempty"`
+}
+
+type AlertManager struct {
+	Version  string `yaml:"version,omitempty"`
+	Disabled bool   `yaml:"disabled,omitempty"`
 }
 
 type Persistence struct {
@@ -474,13 +497,34 @@ type FluentdOperator struct {
 }
 
 type Filebeat struct {
+	Enabled       `yaml:",inline"`
 	Version       string      `yaml:"version"`
-	Disabled      bool        `yaml:"disabled,omitempty"`
 	Name          string      `yaml:"name"`
 	Index         string      `yaml:"index"`
 	Prefix        string      `yaml:"prefix"`
 	Elasticsearch *Connection `yaml:"elasticsearch,omitempty"`
 	Logstash      *Connection `yaml:"logstash,omitempty"`
+}
+
+type Journalbeat struct {
+	Disabled      `yaml:",inline"`
+	Elasticsearch *Connection `yaml:"elasticsearch,omitempty"`
+}
+
+type Auditbeat struct {
+	Disabled      `yaml:",inline"`
+	Elasticsearch *Connection `yaml:"elasticsearch,omitempty"`
+}
+
+type Packetbeat struct {
+	Disabled      `yaml:",inline"`
+	Elasticsearch *Connection `yaml:"elasticsearch,omitempty"`
+	Kibana        *Connection `yaml:"kibana,omitempty"`
+}
+
+type EventRouter struct {
+	Disabled       `yaml:",inline"`
+	FilebeatPrefix string `yaml:"filebeatPrefix"`
 }
 
 type Consul struct {
@@ -570,9 +614,17 @@ type NodeLocalDNS struct {
 }
 
 type SealedSecrets struct {
-	Enabled
+	Enabled     `yaml:",inline"`
 	Version     string `yaml:"version,omitempty"`
 	Certificate *CA    `yaml:"certificate,omitempty"`
+}
+
+type S3UploadCleaner struct {
+	Enabled  `yaml:",inline"`
+	Version  string `yaml:"version"`
+	Endpoint string `yaml:"endpoint"`
+	Bucket   string `yaml:"bucket"`
+	Schedule string `yaml:"schedule"`
 }
 
 type RegistryCredentials struct {
@@ -690,6 +742,14 @@ type Elasticsearch struct {
 	Replicas    int          `yaml:"replicas,omitempty"`
 	Persistence *Persistence `yaml:"persistence,omitempty"`
 	Disabled    bool         `yaml:"disabled,omitempty"`
+}
+
+type Tekton struct {
+	Version          string            `yaml:"version,omitempty"`
+	DashboardVersion string            `yaml:"dashboardVersion,omitempty"`
+	Disabled         bool              `yaml:"disabled,omitempty"`
+	Persistence      Persistence       `yaml:"persistence,omitempty"`
+	FeatureFlags     map[string]string `yaml:"featureFlags,omitempty"`
 }
 
 func (c Connection) GetURL() string {
