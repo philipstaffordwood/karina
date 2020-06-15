@@ -71,3 +71,4 @@ trigger check_run
 another trigger
 yup, another one
 a trigger
+trigger
