@@ -12,7 +12,7 @@ jobs:
     if: "! contains(toJSON(github.event.commits.*.message), 'skip-e2e')"
     steps:
       - uses: actions/checkout@master
-      - run: make pack linux
+      - run: make release
       - name: Run e2e minimal testing script
         run: ./test/
       - name: Upload test results
