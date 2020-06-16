@@ -14,7 +14,7 @@ jobs:
       - uses: actions/checkout@master
       - run: make release
       - name: Run e2e minimal testing script
-        run: ./test/
+        run: ./test/test.sh
       - name: Upload test results
         uses: actions/upload-artifact@v1
         with:
