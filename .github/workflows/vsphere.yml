@@ -8,15 +8,13 @@ on:
 
 jobs:
   minimal:
-    runs-on: [self-hosted]
+    runs-on: ubuntu-latest
     if: "! contains(toJSON(github.event.commits.*.message), 'skip-e2e')"
     steps:
       - uses: actions/checkout@master
       - run: make pack linux
       - name: Run e2e minimal testing script
-        run: |
-          # Run the testing commands in subshell with decoded environment
-          sops exec-env test/vsphere/lab.enc.env './test/vsphere/e2e.sh'
+        run: ./test/
       - name: Upload test results
         uses: actions/upload-artifact@v1
         with:
