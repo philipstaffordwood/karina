@@ -14,7 +14,9 @@ help:
 	@cat docs/developer-guide/make-targets.md
 
 .PHONY: release
-release: setup pack linux darwin compress
+release:
+	echo "Pretending to build"
+	ls -l ./.bin
 
 .PHONY: setup
 setup:

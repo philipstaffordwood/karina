@@ -14,6 +14,7 @@ const (
 )
 
 var specs = []string{
+	"karma.yaml",
 	"grafana-operator.yaml",
 	"kube-prometheus.yaml",
 	"prometheus-adapter.yaml",
@@ -21,6 +22,8 @@ var specs = []string{
 	"node-exporter.yaml",
 	"alertmanager-rules.yaml.raw",
 	"service-monitors.yaml",
+	"namespace-rules.yaml.raw",
+	"kubernetes-rules.yaml.raw",
 }
 
 var cleanup = []string{
@@ -43,6 +46,21 @@ func Install(p *platform.Platform) error {
 			}
 		}
 		return nil
+	}
+
+	if p.Monitoring.Karma.Version == "" {
+		p.Monitoring.Karma.Version = "v0.63"
+	}
+
+	if len(p.Monitoring.Karma.AlertManagers) == 0 {
+		p.Monitoring.Karma.AlertManagers = []string{"http://alertmanager-main:9093"}
+	}
+	if p.Monitoring.Prometheus.Version == "" {
+		p.Monitoring.Prometheus.Version = "v2.16.0"
+	}
+
+	if p.Monitoring.AlertManager.Version == "" {
+		p.Monitoring.AlertManager.Version = "v0.20.0"
 	}
 
 	if err := p.CreateOrUpdateNamespace(Namespace, nil, nil); err != nil {

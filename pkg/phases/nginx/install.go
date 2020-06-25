@@ -5,6 +5,7 @@ import (
 
 	"github.com/flanksource/karina/pkg/platform"
 	"github.com/flanksource/karina/pkg/types"
+	v1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -13,7 +14,7 @@ const (
 
 func Install(platform *platform.Platform) error {
 	if platform.Nginx != nil && platform.Nginx.Disabled {
-		if err := platform.DeleteSpecs(Namespace, "nginx.yaml"); err != nil {
+		if err := platform.DeleteSpecs(v1.NamespaceAll, "nginx.yaml", "nginx-oauth.yaml"); err != nil {
 			platform.Warnf("failed to delete specs: %v", err)
 		}
 		return nil
@@ -29,7 +30,6 @@ func Install(platform *platform.Platform) error {
 	if platform.Nginx.Version == "" {
 		platform.Nginx.Version = "0.25.1.flanksource.1"
 	}
-	platform.Infof("Installing Nginx Ingress Controller: %s", platform.Nginx.Version)
 
 	if platform.Nginx.RequestBodyBuffer == "" {
 		platform.Nginx.RequestBodyBuffer = "16M"
@@ -39,7 +39,7 @@ func Install(platform *platform.Platform) error {
 		platform.Nginx.RequestBodyMax = "32M"
 	}
 
-	if err := platform.ApplySpecs(Namespace, "nginx.yaml"); err != nil {
+	if err := platform.ApplySpecs(v1.NamespaceAll, "nginx.yaml"); err != nil {
 		platform.Errorf("Error deploying nginx: %s\n", err)
 	}
 

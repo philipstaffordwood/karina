@@ -6,11 +6,24 @@ import (
 	"strings"
 
 	"github.com/flanksource/karina/pkg/api/calico"
+	konfigadm "github.com/flanksource/konfigadm/pkg/types"
 	yaml "gopkg.in/flanksource/yaml.v3"
 )
 
 type Enabled struct {
 	Disabled bool `yaml:"disabled"`
+}
+
+type Disabled struct {
+	Disabled bool   `yaml:"disabled"`
+	Version  string `yaml:"version"`
+}
+
+func (d Disabled) IsDisabled() bool {
+	if d.Disabled {
+		return true
+	}
+	return d.Version == ""
 }
 
 type CertManager struct {
@@ -51,8 +64,13 @@ type VM struct {
 	Tags     map[string]string `yaml:"tags,omitempty"`
 	Commands []string          `yaml:"commands,omitempty"`
 	// A path to a konfigadm specification used for configuring the VM on creation.
-	KonfigadmFile string `yaml:"konfigadm,omitempty"`
-	IP            string `yaml:"-"`
+	KonfigadmFile string            `yaml:"konfigadm,omitempty"`
+	IP            string            `yaml:"-"`
+	Konfigadm     *konfigadm.Config `yaml:"-"`
+}
+
+func (vm VM) GetTags() map[string]string {
+	return vm.Tags
 }
 
 type Calico struct {
@@ -67,15 +85,14 @@ type Calico struct {
 }
 
 type OPA struct {
-	Disabled           bool     `yaml:"disabled,omitempty"`
-	NamespaceWhitelist []string `yaml:"namespaceWhitelist,omitempty"`
-	KubeMgmtVersion    string   `yaml:"kubeMgmtVersion,omitempty"`
-	Version            string   `yaml:"version,omitempty"`
-	BundleURL          string   `yaml:"bundleUrl,omitempty"`
-	BundlePrefix       string   `yaml:"bundlePrefix,omitempty"`
-	BundleServiceName  string   `yaml:"bundleServiceName,omitempty"`
-	LogFormat          string   `yaml:"logFormat,omitempty"`
-	SetDecisionLogs    bool     `yaml:"setDecisionLogs,omitempty"`
+	Disabled          bool   `yaml:"disabled,omitempty"`
+	KubeMgmtVersion   string `yaml:"kubeMgmtVersion,omitempty"`
+	Version           string `yaml:"version,omitempty"`
+	BundleURL         string `yaml:"bundleUrl,omitempty"`
+	BundlePrefix      string `yaml:"bundlePrefix,omitempty"`
+	BundleServiceName string `yaml:"bundleServiceName,omitempty"`
+	LogFormat         string `yaml:"logFormat,omitempty"`
+	SetDecisionLogs   bool   `yaml:"setDecisionLogs,omitempty"`
 	// Policies is a path to directory containing .rego policy files
 	Policies string `yaml:"policies,omitempty"`
 	// Log level for opa server, one of: `debug`,`info`,`error` (default: `error`)
@@ -311,9 +328,22 @@ func (c *Kubernetes) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
+// Canary-checker allows for the deployment and configuration of the canary-checker
+type CanaryChecker struct {
+	Enabled    `yaml:",inline"`
+	Version    string `yaml:"version"`
+	ConfigFile string `yaml:"configFile,omitempty"`
+}
+
 type Dashboard struct {
-	Enabled
+	Enabled          `yaml:",inline"`
+	Version          string           `yaml:"version,omitempty"`
 	AccessRestricted LdapAccessConfig `yaml:"accessRestricted,omitempty"`
+}
+
+type Dex struct {
+	Enabled `yaml:",inline"`
+	Version string `yaml:"version,omitempty"`
 }
 
 type LdapAccessConfig struct {
@@ -323,15 +353,28 @@ type LdapAccessConfig struct {
 }
 
 type DynamicDNS struct {
-	Disabled   bool   `yaml:"disabled,omitempty"`
+	Disabled bool `yaml:"disabled,omitempty"`
+	// Set to true if you want DNS records added to k8s-api and "*" for every new
+	// worker and master created.
+	UpdateHosts bool `yaml:"updateHosts,omitempty"`
+	// Nameserver and port for dynamic DNS updates
 	Nameserver string `yaml:"nameserver,omitempty"`
-	Key        string `yaml:"key,omitempty"`
-	KeyName    string `yaml:"keyName,omitempty"`
-	Algorithm  string `yaml:"algorithm,omitempty"`
-	Zone       string `yaml:"zone,omitempty"`
-	AccessKey  string `yaml:"accessKey,omitempty"`
-	SecretKey  string `yaml:"secretKey,omitempty"`
-	Type       string `yaml:"type,omitempty"`
+	// Dynamic DNS key secret
+	Key string `yaml:"key,omitempty"`
+	// Dynamic DNS key name
+	KeyName string `yaml:"keyName,omitempty"`
+	// A Dynamic DNS signature algorithm, one of: hmac-md5, hmac-sha1, hmac-256, hmac-512
+	Algorithm string `yaml:"algorithm,omitempty"`
+	Zone      string `yaml:"zone,omitempty"`
+	AccessKey string `yaml:"accessKey,omitempty"`
+	SecretKey string `yaml:"secretKey,omitempty"`
+	// Type of DNS provider. Defaults to RFC 2136 Dynamic DNS. If using "route53" you
+	// must specify accessKey, secretKey and zone
+	Type string `yaml:"type,omitempty"`
+}
+
+func (dns DynamicDNS) IsEnabled() bool {
+	return !dns.Disabled
 }
 
 type Monitoring struct {
@@ -339,8 +382,9 @@ type Monitoring struct {
 	AlertEmail         string        `yaml:"alert_email,omitempty"`
 	Version            string        `yaml:"version,omitempty" json:"version,omitempty"`
 	Prometheus         Prometheus    `yaml:"prometheus,omitempty" json:"prometheus,omitempty"`
+	Karma              Karma         `yaml:"karma,omitempty"`
 	Grafana            Grafana       `yaml:"grafana,omitempty" json:"grafana,omitempty"`
-	AlertManager       string        `yaml:"alertMmanager,omitempty"`
+	AlertManager       AlertManager  `yaml:"alertmanager,omitempty"`
 	KubeStateMetrics   string        `yaml:"kubeStateMetrics,omitempty"`
 	KubeRbacProxy      string        `yaml:"kubeRbacProxy,omitempty"`
 	NodeExporter       string        `yaml:"nodeExporter,omitempty"`
@@ -349,6 +393,11 @@ type Monitoring struct {
 	E2E                MonitoringE2E `yaml:"e2e,omitempty"`
 }
 
+// Configuration for [Karma](https://github.com/prymitive/karma/releases) Alert Dashboard
+type Karma struct {
+	Version       string   `yaml:"version,omitempty"`
+	AlertManagers []string `yaml:"alertManagers"`
+}
 type MonitoringE2E struct {
 	// MinAlertLevel is the minimum alert level for which E2E tests should fail. can be
 	// can be one of critical, warning, info
@@ -359,6 +408,11 @@ type Prometheus struct {
 	Version     string      `yaml:"version,omitempty"`
 	Disabled    bool        `yaml:"disabled,omitempty"`
 	Persistence Persistence `yaml:"persistence,omitempty"`
+}
+
+type AlertManager struct {
+	Version  string `yaml:"version,omitempty"`
+	Disabled bool   `yaml:"disabled,omitempty"`
 }
 
 type Persistence struct {
@@ -474,13 +528,34 @@ type FluentdOperator struct {
 }
 
 type Filebeat struct {
+	Enabled       `yaml:",inline"`
 	Version       string      `yaml:"version"`
-	Disabled      bool        `yaml:"disabled,omitempty"`
 	Name          string      `yaml:"name"`
 	Index         string      `yaml:"index"`
 	Prefix        string      `yaml:"prefix"`
 	Elasticsearch *Connection `yaml:"elasticsearch,omitempty"`
 	Logstash      *Connection `yaml:"logstash,omitempty"`
+}
+
+type Journalbeat struct {
+	Disabled `yaml:",inline"`
+	Kibana   *Connection `yaml:"kibana,omitempty"`
+}
+
+type Auditbeat struct {
+	Disabled `yaml:",inline"`
+	Kibana   *Connection `yaml:"kibana,omitempty"`
+}
+
+type Packetbeat struct {
+	Disabled      `yaml:",inline"`
+	Elasticsearch *Connection `yaml:"elasticsearch,omitempty"`
+	Kibana        *Connection `yaml:"kibana,omitempty"`
+}
+
+type EventRouter struct {
+	Disabled       `yaml:",inline"`
+	FilebeatPrefix string `yaml:"filebeatPrefix"`
 }
 
 type Consul struct {
@@ -570,9 +645,17 @@ type NodeLocalDNS struct {
 }
 
 type SealedSecrets struct {
-	Enabled
+	Enabled     `yaml:",inline"`
 	Version     string `yaml:"version,omitempty"`
 	Certificate *CA    `yaml:"certificate,omitempty"`
+}
+
+type S3UploadCleaner struct {
+	Enabled  `yaml:",inline"`
+	Version  string `yaml:"version"`
+	Endpoint string `yaml:"endpoint"`
+	Bucket   string `yaml:"bucket"`
+	Schedule string `yaml:"schedule"`
 }
 
 type RegistryCredentials struct {
@@ -690,6 +773,20 @@ type Elasticsearch struct {
 	Replicas    int          `yaml:"replicas,omitempty"`
 	Persistence *Persistence `yaml:"persistence,omitempty"`
 	Disabled    bool         `yaml:"disabled,omitempty"`
+}
+
+type Tekton struct {
+	Version          string            `yaml:"version,omitempty"`
+	DashboardVersion string            `yaml:"dashboardVersion,omitempty"`
+	EventsVersion    string            `yaml:"eventsVersion,omitempty"`
+	Disabled         bool              `yaml:"disabled,omitempty"`
+	Persistence      Persistence       `yaml:"persistence,omitempty"`
+	FeatureFlags     map[string]string `yaml:"featureFlags,omitempty"`
+}
+
+type Test struct {
+	// A list of tests to exclude from testings
+	Exclude []string `yaml:"exclude,omitempty"`
 }
 
 func (c Connection) GetURL() string {

@@ -1,0 +1,22 @@
+name: vSphere
+
+on:
+  pull_request:
+    paths-ignore:
+      - "docs/**"
+    types: [assigned, opened, synchronize, reopened]
+
+jobs:
+  minimal:
+    runs-on: ubuntu-latest
+    if: "! contains(toJSON(github.event.commits.*.message), 'skip-e2e')"
+    steps:
+      - uses: actions/checkout@master
+      - run: make release
+      - name: Run e2e minimal testing script
+        run: ./test/test.sh
+      - name: Upload test results
+        uses: actions/upload-artifact@v1
+        with:
+          name: test-results
+          path: test-results/

@@ -13,6 +13,7 @@ require (
 	github.com/go-pg/pg/v9 v9.1.6
 	github.com/go-test/deep v1.0.2-0.20181118220953-042da051cf31
 	github.com/google/uuid v1.1.1
+	github.com/hako/durafmt v0.0.0-20191009132224-3f39dc1ed9f4
 	github.com/hashicorp/vault/api v1.0.4
 	github.com/imdario/mergo v0.3.8
 	github.com/inconshreveable/log15 v0.0.0-20200109203555-b30bc20e4fd1 // indirect
@@ -35,10 +36,11 @@ require (
 	github.com/vmware/govmomi v0.21.0
 	github.com/voxelbrain/goptions v0.0.0-20180630082107-58cddc247ea2 // indirect
 	go.etcd.io/etcd v0.0.0-20191023171146-3cf2f69b5738
+	golang.org/x/crypto v0.0.0-20200317142112-1b76d66859c6
 	golang.org/x/mod v0.3.0 // indirect
 	golang.org/x/tools v0.0.0-20200519205726-57a9e4404bf7 // indirect
 	google.golang.org/grpc v1.26.0
-	gopkg.in/flanksource/yaml.v3 v3.1.0
+	gopkg.in/flanksource/yaml.v3 v3.1.1
 	gopkg.in/yaml.v2 v2.2.8
 	k8s.io/api v0.17.3
 	k8s.io/apimachinery v0.17.3

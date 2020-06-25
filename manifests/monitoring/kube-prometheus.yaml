@@ -5,18 +5,20 @@ metadata:
     alertmanager: main
   name: main
   namespace: monitoring
+  annotations:
+    image: "quay.io/prometheus/alertmanager:{{.monitoring.alertmanager.version}}"
 spec:
   baseImage: quay.io/prometheus/alertmanager
   nodeSelector:
     kubernetes.io/os: linux
   replicas: 3
-  externalUrl: alertmanager.{{.domain}}
+  externalUrl: https://alertmanager.{{.domain}}
   securityContext:
     fsGroup: 2000
     runAsNonRoot: true
     runAsUser: 1000
   serviceAccountName: alertmanager-main
-  version: v0.18.0
+  version: {{.monitoring.alertmanager.version}}
 ---
 apiVersion: v1
 kind: Service
@@ -110,6 +112,8 @@ metadata:
     prometheus: k8s
   name: k8s
   namespace: monitoring
+  annotations:
+    image: "quay.io/prometheus/prometheus:{{.monitoring.prometheus.version}}"
 spec:
   alerting:
     alertmanagers:
@@ -146,7 +150,7 @@ spec:
   serviceMonitorSelector: {}
   externalLabels:
     cluster: {{.name}}
-  version: v2.11.0
+  version: {{.monitoring.prometheus.version}}
   {{- if (index .monitoring "prometheus")  }}
   {{- if (index .monitoring.prometheus "persistence") }}
   storage:
@@ -314,7 +318,7 @@ spec:
       type: elasticsearch
       access: proxy
       basicAuth: true
-      url: "https://{{.elasticsearch.url}}:{{.elasticsearch.port}}"
+      url: "{{.elasticsearch.url}}"
       basicAuthUser: {{.elasticsearch.user}}
       secureJsonData:
         basicAuthPassword: {{.elasticsearch.password}}
@@ -450,6 +454,9 @@ metadata:
   namespace: monitoring
   annotations:
     kubernetes.io/tls-acme: "true"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    nginx.ingress.kubernetes.io/configuration-snippet: 'more_set_headers "Access-Control-Allow-Origin: $http_origin";'
   {{ if .oauth2Proxy.enabled }}
     nginx.ingress.kubernetes.io/auth-url: "https://oauth2.{{.domain}}/oauth2/auth"
     nginx.ingress.kubernetes.io/auth-signin: "https://oauth2.{{.domain}}/oauth2/start?rd=https%3A%2F%2F$host$request_uri"

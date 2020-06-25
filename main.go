@@ -43,6 +43,7 @@ func main() {
 		cmd.Images,
 		cmd.Logs,
 		cmd.MachineImages,
+		cmd.Namespace,
 		cmd.NSX,
 		cmd.Opa,
 		cmd.Provision,
@@ -93,7 +94,7 @@ func main() {
 
 	root.PersistentFlags().StringArrayP("config", "c", []string{utils.GetEnvOrDefault("PLATFORM_CONFIG", "config.yml")}, "Path to config file")
 	root.PersistentFlags().StringArrayP("extra", "e", nil, "Extra arguments to apply e.g. -e ldap.domain=example.com")
-	root.PersistentFlags().StringP("kubeconfig", "", fmt.Sprintf("%s/.kube/config", os.Getenv("HOME")), "Specify a kubeconfig to use, if empty a new kubeconfig is generated from master CA's at runtime")
+	root.PersistentFlags().StringP("kubeconfig", "", "", "Specify a kubeconfig to use, if empty a new kubeconfig is generated from master CA's at runtime")
 	root.PersistentFlags().CountP("loglevel", "v", "Increase logging level")
 	root.PersistentFlags().Bool("dry-run", false, "Don't apply any changes, print what would have been done")
 	root.PersistentFlags().Bool("trace", false, "Print out generated specs and configs")
