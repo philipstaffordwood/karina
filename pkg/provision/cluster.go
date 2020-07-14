@@ -162,47 +162,15 @@ func (cluster *Cluster) GetHealth(node v1.Node) string {
 }
 
 func (cluster *Cluster) Cordon(node v1.Node) error {
-	ctx := context.TODO()
 	if k8s.IsMasterNode(node) {
-		// we always interact via the etcd leader, as a previous node may have become unavailable
-		leaderClient, err := cluster.GetEtcdLeader()
+		newEtcdLeader, err := cluster.findNextYougestNode(&node)
 		if err != nil {
 			return err
 		}
-		cluster.Infof("etcd leader is: %s", leaderClient.Name)
-
-		members, err := leaderClient.Members(ctx)
+		err = cluster.PromoteNewEtcdLeader(newEtcdLeader)
 		if err != nil {
 			return err
 		}
-		var etcdMember *etcd.Member
-		var candidateLeader *etcd.Member
-		for _, member := range members {
-			if member.Name == node.Name {
-				// find the etcd member for the node
-				etcdMember = member
-			}
-			if member.Name != leaderClient.Name {
-				// choose a potential candidate to move the etcd leader
-				candidateLeader = member
-			}
-		}
-		if etcdMember == nil {
-			cluster.Warnf("%s has already been removed from etcd cluster", node.Name)
-		} else {
-			if etcdMember.ID == leaderClient.MemberID {
-				cluster.Infof("Moving etcd leader from %s to %s", node.Name, candidateLeader.Name)
-				if err := leaderClient.MoveLeader(ctx, candidateLeader.ID); err != nil {
-					return fmt.Errorf("failed to move leader: %v", err)
-				}
-			}
-
-			cluster.Infof("Removing etcd member %s", node.Name)
-			if err := leaderClient.RemoveMember(ctx, etcdMember.ID); err != nil {
-				return err
-			}
-		}
-
 		// proactively remove server from consul so that we can get a new connection to k8s
 		if err := cluster.GetConsulClient().RemoveMember(node.Name); err != nil {
 			return err
@@ -215,4 +183,66 @@ func (cluster *Cluster) Cordon(node v1.Node) error {
 		}
 	}
 	return cluster.Platform.Cordon(node.Name)
+}
+
+// findNextYougestNode finds the youngest node in the cluster that is not the
+// given node.
+// it fails:
+//   if there are no nodes,
+//   if there is only one node and we want another younger one
+func (cluster *Cluster) findNextYougestNode(node *v1.Node) (*v1.Node, error) {
+	sort.Sort(cluster.Nodes)
+	if len(cluster.Nodes) < 1 {
+		return nil, fmt.Errorf("findNextYougestNode failed since the cluster has no nodes")
+	}
+	if &cluster.Nodes[0].Node != node {
+		return &cluster.Nodes[0].Node, nil
+	}
+	if len(cluster.Nodes) < 2 {
+		return nil, fmt.Errorf("findNextYougestNode failed since this is the only node")
+	}
+	return &cluster.Nodes[1].Node, nil
+
+}
+
+func (cluster *Cluster) PromoteNewEtcdLeader(node *v1.Node) error {
+	ctx := context.TODO()
+	// we always interact via the etcd leader, as a previous node may have become unavailable
+	leaderClient, err := cluster.GetEtcdLeader()
+	if err != nil {
+		return err
+	}
+	cluster.Infof("etcd leader is: %s", leaderClient.Name)
+
+	members, err := leaderClient.Members(ctx)
+	if err != nil {
+		return err
+	}
+	var currentLeader *etcd.Member
+	var candidateLeader *etcd.Member
+	for _, member := range members {
+		if member.Name == leaderClient.Name {
+			// find the etcd member for the node
+			currentLeader = member
+		}
+		if member.Name == node.Name {
+			// choose a potential candidate to move the etcd leader
+			candidateLeader = member
+		}
+	}
+	if currentLeader == nil {
+		cluster.Warnf("%s has already been removed from etcd cluster", node.Name)
+	} else {
+		if currentLeader.ID == leaderClient.MemberID {
+			cluster.Infof("Moving etcd leader from %s to %s", node.Name, candidateLeader.Name)
+			if err := leaderClient.MoveLeader(ctx, candidateLeader.ID); err != nil {
+				return fmt.Errorf("failed to move leader: %v", err)
+			}
+		}
+		cluster.Infof("Removing etcd member %s", node.Name)
+		if err := leaderClient.RemoveMember(ctx, currentLeader.ID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
