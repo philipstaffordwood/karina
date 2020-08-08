@@ -77,7 +77,7 @@ type Calico struct {
 	Disabled  bool                    `yaml:"disabled,omitempty"`
 	IPIP      calico.IPIPMode         `yaml:"ipip"`
 	VxLAN     calico.VXLANMode        `yaml:"vxlan"`
-	Version   string                  `yaml:"version,omitempty"`
+	Version   string                  `yaml:"version"`
 	Log       string                  `yaml:"log,omitempty"`
 	BGPPeers  []calico.BGPPeer        `yaml:"bgpPeers,omitempty"`
 	BGPConfig calico.BGPConfiguration `yaml:"bgpConfig,omitempty"`
@@ -325,6 +325,9 @@ func (c *Kubernetes) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 	if raw.AuditConfig.PolicyFile != "" {
+		if raw.APIServerExtraArgs == nil {
+			raw.APIServerExtraArgs = make(map[string]string)
+		}
 		if _, found := raw.APIServerExtraArgs["audit-log-path"]; !found {
 			raw.APIServerExtraArgs["audit-log-path"] = "/var/log/audit/cluster-audit.log"
 		}
@@ -446,6 +449,14 @@ type KubeResourceReport struct {
 	UpdateInterval int `yaml:"updateInterval,omitempty"`
 	// add a fixed extra cost per cluster
 	AdditionalClusterCost float32 `yaml:"additionalClusterCost,omitempty"`
+	// specify costs inline
+	Costs map[string]float32 `yaml:"costs,omitempty"`
+	// specify a CSV file with custom costs for nodes with rows in the form:
+	// columns: region,instance-type,monthly-price-usd
+	// to apply this add labels to cluster nodes:
+	// region is defined via the node label "failure-domain.beta.kubernetes.io/region"
+	// instance-type is defined via the node label "beta.kubernetes.io/instance-type"
+	CostsFile string `yaml:"costsfile,omitempty"`
 	// a map of extra clusters that kube-resource report will report on.
 	// in the form:
 	// clusterName: cluster API endpoint
